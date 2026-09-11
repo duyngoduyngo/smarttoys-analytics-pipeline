@@ -1,0 +1,48 @@
+version: 2
+
+models:
+  - name: gold_product_economics
+    description: >
+      Unit Economics theo sản phẩm. Cho thấy nghịch lý: sản phẩm bán chạy nhất
+      lại có biên lợi nhuận ròng thấp nhất do giá vốn cao và hoàn tiền nhiều.
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+      - name: net_margin_pct
+        tests:
+          - not_null
+      - name: refund_rate_pct
+        tests:
+          - not_null
+
+  - name: gold_funnel_by_device
+    description: >
+      Phễu chuyển đổi 7 bước tách theo desktop và mobile, kèm CTR
+      và tỷ lệ rơi rụng giữa các bước liền kề.
+    columns:
+      - name: device_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['desktop', 'mobile']
+      - name: step_name
+        tests:
+          - not_null
+      - name: sessions
+        tests:
+          - not_null
+
+  - name: gold_cohort_retention
+    description: >
+      Tỷ lệ khách quay lại theo tháng gia nhập. Giá trị rất thấp phản ánh
+      thực trạng doanh nghiệp gần như không có vòng đời khách hàng.
+    columns:
+      - name: cohort_month
+        tests:
+          - not_null
+      - name: retention_pct
+        tests:
+          - not_null
