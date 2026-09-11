@@ -1,0 +1,60 @@
+version: 2
+
+models:
+  - name: silver_order_items_enriched
+    description: >
+      Dòng sản phẩm đã gắn tên sản phẩm và tiền hoàn, tính sẵn net_profit_usd.
+      Refund được gộp theo order_item_id trước khi join để tránh fan-out.
+    columns:
+      - name: order_item_id
+        description: Khóa chính. Test unique ở đây chính là cơ chế chống fan-out.
+        tests:
+          - unique
+          - not_null
+      - name: product_name
+        tests:
+          - not_null
+      - name: net_profit_usd
+        description: price_usd trừ cogs_usd trừ refund_amount_usd.
+        tests:
+          - not_null
+      - name: refund_amount_usd
+        tests:
+          - not_null
+
+  - name: silver_session_journey
+    description: >
+      Một dòng cho mỗi phiên truy cập. Đơn hàng được gộp theo phiên
+      trước khi join — chính là lỗi fan-out từng phải chặn bằng assert
+      thủ công trong bản phân tích pandas.
+    columns:
+      - name: website_session_id
+        description: Khóa chính. Test unique đảm bảo không fan-out sau join.
+        tests:
+          - unique
+          - not_null
+      - name: device_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['desktop', 'mobile']
+      - name: landing_page
+        tests:
+          - not_null
+      - name: is_converted
+        tests:
+          - not_null
+
+  - name: silver_funnel_steps
+    description: >
+      Bảy cờ boolean cho mỗi phiên, đánh dấu phiên đã đi tới bước nào
+      trong phễu mua hàng. Nền cho mart phễu theo thiết bị.
+    columns:
+      - name: website_session_id
+        tests:
+          - unique
+          - not_null
+      - name: device_type
+        tests:
+          - not_null
