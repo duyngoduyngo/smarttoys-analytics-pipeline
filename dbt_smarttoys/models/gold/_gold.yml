@@ -46,3 +46,19 @@ models:
       - name: retention_pct
         tests:
           - not_null
+  - name: gold_customer_rfm
+    description: >
+      Phân khúc RFM ở mức khách hàng. Giới hạn đã biết: frequency chỉ có
+      3 giá trị duy nhất nên thang F chỉ phân được 3 bậc; tên segment phản ánh
+      chủ yếu Recency và Monetary.
+    columns:
+      - name: user_id
+        tests:
+          - unique
+          - not_null
+      - name: rfm_segment
+        tests:
+          - not_null
+      - name: frequency
+        tests:
+          - not_null
