@@ -1,0 +1,167 @@
+version: 2
+
+sources:
+  - name: raw
+    description: >
+      Dữ liệu thô nạp từ 6 file CSV bằng dlt pipeline (ingestion/load_raw.py).
+      Nằm ở schema `raw` trong smarttoys.duckdb. Không chỉnh sửa thủ công —
+      mọi biến đổi thực hiện ở tầng bronze trở đi.
+    schema: raw
+
+    tables:
+      - name: orders
+        description: Đơn hàng. Mỗi dòng là một đơn, gắn với một phiên truy cập.
+        columns:
+          - name: order_id
+            description: Khóa chính.
+            tests:
+              - unique
+              - not_null
+          - name: website_session_id
+            description: Phiên truy cập tạo ra đơn hàng này.
+            tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('raw', 'website_sessions')
+                    field: website_session_id
+          - name: user_id
+            description: Định danh khách hàng, dùng cho RFM và Cohort.
+            tests:
+              - not_null
+          - name: primary_product_id
+            description: Sản phẩm chính của đơn.
+            tests:
+              - relationships:
+                  arguments:
+                    to: source('raw', 'products')
+                    field: product_id
+          - name: items_purchased
+            description: Số sản phẩm trong đơn. Lớn hơn 1 nghĩa là đơn bán chéo.
+          - name: price_usd
+            description: Doanh thu của đơn.
+          - name: cogs_usd
+            description: Giá vốn của đơn.
+
+      - name: order_items
+        description: >
+          Dòng sản phẩm trong đơn hàng. Mỗi đơn có một hoặc nhiều dòng.
+          Đây là hạt dữ liệu dùng để tính Unit Economics theo sản phẩm.
+        columns:
+          - name: order_item_id
+            description: Khóa chính.
+            tests:
+              - unique
+              - not_null
+          - name: order_id
+            tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('raw', 'orders')
+                    field: order_id
+          - name: product_id
+            tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('raw', 'products')
+                    field: product_id
+          - name: is_primary_item
+            description: Đánh dấu dòng này có phải sản phẩm chính của đơn không.
+          - name: price_usd
+          - name: cogs_usd
+
+      - name: order_item_refunds
+        description: >
+          Giao dịch hoàn tiền, gắn với từng dòng order_item.
+          Bảng không có trường lý do hoàn hàng — đây là giới hạn đã ghi nhận
+          trong phân tích, khiến không thể truy nguyên nhân gốc.
+        columns:
+          - name: order_item_refund_id
+            description: Khóa chính.
+            tests:
+              - unique
+              - not_null
+          - name: order_item_id
+            tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('raw', 'order_items')
+                    field: order_item_id
+          - name: order_id
+            tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('raw', 'orders')
+                    field: order_id
+          - name: refund_amount_usd
+            description: Số tiền hoàn. Không được vượt quá price_usd của dòng gốc.
+
+      - name: products
+        description: >
+          Danh mục sản phẩm. Chỉ 4 SKU — cỡ mẫu nhỏ khiến quy luật Pareto 80/20
+          không bộc lộ rõ ở tầng sản phẩm.
+        columns:
+          - name: product_id
+            description: Khóa chính.
+            tests:
+              - unique
+              - not_null
+          - name: product_name
+            tests:
+              - not_null
+              - unique
+
+      - name: website_sessions
+        description: >
+          Phiên truy cập website, kèm nguồn UTM và loại thiết bị.
+          Khoảng 83k phiên không có UTM — đây là traffic trực tiếp/organic
+          hợp lệ, được gán nhãn ở tầng bronze thay vì loại bỏ.
+        columns:
+          - name: website_session_id
+            description: Khóa chính.
+            tests:
+              - unique
+              - not_null
+          - name: user_id
+            tests:
+              - not_null
+          - name: is_repeat_session
+            description: Phiên của khách đã từng truy cập trước đó.
+          - name: utm_source
+            description: Nguồn traffic. Null nghĩa là truy cập trực tiếp hoặc organic.
+          - name: device_type
+            description: desktop hoặc mobile.
+            tests:
+              - not_null
+              - accepted_values:
+                  arguments:
+                    values: ['desktop', 'mobile']
+
+      - name: website_pageviews
+        description: >
+          Lượt xem trang, khoảng 1.19 triệu dòng — bảng lớn nhất.
+          Dùng để dựng phễu chuyển đổi 7 bước và xác định landing page.
+        columns:
+          - name: website_pageview_id
+            description: Khóa chính.
+            tests:
+              - unique
+              - not_null
+          - name: website_session_id
+            tests:
+              - not_null
+              - relationships:
+                  arguments:
+                    to: source('raw', 'website_sessions')
+                    field: website_session_id
+          - name: pageview_url
+            description: >
+              Đường dẫn trang. Dùng để phân loại các bước phễu:
+              /products, trang chi tiết sản phẩm, /cart, /shipping, /billing,
+              /thank-you-for-your-order.
+            tests:
+              - not_null

@@ -1,0 +1,130 @@
+version: 2
+
+models:
+  - name: bronze_orders
+    description: >
+      Đơn hàng đã chuẩn hóa kiểu thời gian, thêm order_month cho phân tích
+      theo tháng và phân loại Single/Cross-sell theo items_purchased.
+    columns:
+      - name: order_id
+        description: Khóa chính.
+        tests:
+          - unique
+          - not_null
+      - name: website_session_id
+        tests:
+          - not_null
+      - name: user_id
+        description: Dùng cho RFM và Cohort ở tầng silver.
+        tests:
+          - not_null
+      - name: order_type
+        description: Single nếu mua 1 sản phẩm, Cross-sell nếu từ 2 trở lên.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['Single', 'Cross-sell']
+      - name: gross_profit_usd
+        description: price_usd trừ cogs_usd, chưa trừ hoàn tiền.
+
+  - name: bronze_order_items
+    description: Dòng sản phẩm trong đơn. Hạt dữ liệu để tính Unit Economics.
+    columns:
+      - name: order_item_id
+        description: Khóa chính.
+        tests:
+          - unique
+          - not_null
+      - name: order_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('bronze_orders')
+                field: order_id
+      - name: product_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('bronze_products')
+                field: product_id
+
+  - name: bronze_order_item_refunds
+    description: >
+      Giao dịch hoàn tiền theo từng dòng order_item.
+      Không có trường lý do hoàn hàng — giới hạn đã ghi nhận trong phân tích.
+    columns:
+      - name: order_item_refund_id
+        description: Khóa chính.
+        tests:
+          - unique
+          - not_null
+      - name: order_item_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('bronze_order_items')
+                field: order_item_id
+      - name: refund_amount_usd
+        description: Số tiền hoàn, không được vượt price_usd của dòng gốc.
+        tests:
+          - not_null
+
+  - name: bronze_products
+    description: Danh mục sản phẩm. Chỉ 4 SKU.
+    columns:
+      - name: product_id
+        description: Khóa chính.
+        tests:
+          - unique
+          - not_null
+      - name: product_name
+        tests:
+          - unique
+          - not_null
+
+  - name: bronze_website_sessions
+    description: >
+      Phiên truy cập đã chuẩn hóa. UTM null được gán nhãn 'direct/organic'
+      thay vì loại bỏ, vì đó là traffic hợp lệ chứ không phải lỗi nhập liệu.
+      device_type đưa về chữ thường để group nhất quán.
+    columns:
+      - name: website_session_id
+        description: Khóa chính.
+        tests:
+          - unique
+          - not_null
+      - name: utm_source
+        description: Nguồn traffic, null đã thay bằng 'direct/organic'.
+        tests:
+          - not_null
+      - name: device_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['desktop', 'mobile']
+
+  - name: bronze_website_pageviews
+    description: >
+      Lượt xem trang, khoảng 1.19 triệu dòng. Dùng dựng phễu 7 bước
+      và xác định landing page của mỗi phiên.
+    columns:
+      - name: website_pageview_id
+        description: Khóa chính.
+        tests:
+          - unique
+          - not_null
+      - name: website_session_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('bronze_website_sessions')
+                field: website_session_id
+      - name: pageview_url
+        tests:
+          - not_null

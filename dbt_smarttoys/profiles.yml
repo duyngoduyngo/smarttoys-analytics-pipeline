@@ -1,0 +1,7 @@
+dbt_smarttoys:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../smarttoys.duckdb
+      threads: 4
